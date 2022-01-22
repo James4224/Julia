@@ -1,0 +1,3 @@
+# Operators
+
+define type StrangMatix
