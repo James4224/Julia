@@ -63,51 +63,47 @@ function PreconditionedConjugateGradient(x, Minv, A, b, tolerance)
 end
 
 function IncompleteCholeskyPreconditioner!(L::Matrix,A::Matrix)
-    for i in 1:1:size(A,1)
-        s = 0.0
-        for k in 1:1:(i-1)
-            s = s + L[i,k]*L[i,k]
-        end
-        L[i,i] = sqrt(A[i,i] - s)
-
-        for j in (i+1):1:(size(A,1))
-            s = 0.0
-            for k in 1:1:(i-1)
-                s = s + L[i,k]*L[j,k]
+    n = size(A,1)
+    for k in 1:1:n
+        @inbounds L[k,k] = sqrt(A[k,k])
+        for i in (k+1):1:n
+        @inbounds if A[i,k] != 0.0
+            @inbounds L[i,k] = A[i,k]/L[k,k]
             end
-            if (L[i,i]>0.0)
-                L[j,i] = (A[j,i] - s)/L[i,i] 
+        end
+
+        for j in (k+1):1:n
+            for i in j:1:n
+                @inbounds if A[i,j] != 0.0
+                    @inbounds L[i,j] = L[i,j]-L[i,k]*L[j,k]
+                end
             end
         end
     end
 end
 
 function IncompleteCholeskyPreconditioner(A)
-    L = 0.0.*A
+    L = copy(A)
     IncompleteCholeskyPreconditioner!(L,A)
     return L
 end
 
 # wikipedia test case:
-# A = [[4.0 1.0];[1.0 3.0]]
-# x = [2.0, 1.0]
-# b = [1.0, 2.0]
-tolerance = 0.000000001
+ A = [[4.0 1.0];[1.0 3.0]]
+ x = [2.0, 1.0]
+ b = [1.0, 2.0]
+tolerance = 1e-8
 
-#@btime ConjugateGradient!(x, A, b, tolerance);
-#L = [[1.0 0.0];[0.0 1.0]]
-#@btime PreconditionedConjugateGradient!(x, Minv, A, b, tolerance)
-#y = PreconditionedConjugateGradient(x, L, A, b, tolerance)
-#print(y)
+@btime ConjugateGradient!(x, A, b, tolerance);
+L = [[1.0 0.0];[0.0 1.0]]
+@btime PreconditionedConjugateGradient!(x, L, A, b, tolerance)
 
 ## Test the factorisation:
 A = [[3.0, 0.0, -1.0, -1.0, 0.0, -1.0] [0.0, 2.0, 0.0, -1.0, 0.0, 0.0] [-1.0, 0.0, 3.0, 0.0, -1.0, 0.0] [-1.0, -1.0, 0.0, 2.0, 0.0, -1.0] [0.0, 0.0, -1.0, 0.0, 3.0, -1.0] [-1.0, 0.0, 0.0, -1.0, -1.0, 4.0]]
 L = zeros(6,6)
-IncompleteCholeskyPreconditioner!(L, A)
-Minv = I/L
+@btime IncompleteCholeskyPreconditioner!(L, A)
 x = ones(6)::Vector
 b = ones(6)::Vector
+@btime PreconditionedConjugateGradient!(x, L, A, b, tolerance)
 
-#y = PreconditionedConjugateGradient(x, Minv, A, b, tolerance)
-ConjugateGradient!(x,A,b,tolerance)
-print(x)
+print(A*x)
